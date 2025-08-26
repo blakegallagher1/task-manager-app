@@ -1,9 +1,11 @@
 const http = require('http');
 const url = require('url');
 const { simulatePortfolio, generateActionPlan, generatePillarRecommendations } = require('./src/simulator.js');
+const { loadTasks, saveTasks } = require('./src/storage.js');
 
-let tasks = {};
-let currentId = 1;
+// Load existing tasks from storage and set currentId
+let tasks = loadTasks();
+let currentId = Object.keys(tasks).length ? Math.max(...Object.keys(tasks).map(id => parseInt(id))) + 1 : 1;
 
 function sendResponse(res, statusCode, data) {
   res.writeHead(statusCode, { 'Content-Type': 'application/json' });
@@ -50,6 +52,7 @@ const server = http.createServer((req, res) => {
         }
         const id = currentId++;
         tasks[id] = taskData;
+        saveTasks(tasks);
         sendResponse(res, 201, { id, ...taskData });
       } catch (e) {
         sendResponse(res, 400, { error: 'Invalid JSON' });
@@ -79,6 +82,7 @@ const server = http.createServer((req, res) => {
           return;
         }
         tasks[id] = taskData;
+        saveTasks(tasks);
         sendResponse(res, 200, { id: Number(id), ...taskData });
       } catch (e) {
         sendResponse(res, 400, { error: 'Invalid JSON' });
@@ -88,6 +92,7 @@ const server = http.createServer((req, res) => {
     const id = path.split('/')[2];
     if (tasks[id]) {
       delete tasks[id];
+      saveTasks(tasks);
       sendResponse(res, 200, { message: 'Task deleted' });
     } else {
       sendResponse(res, 404, { error: 'Task not found' });
