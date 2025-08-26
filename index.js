@@ -26,69 +26,67 @@ const server = http.createServer((req, res) => {
       try {
         const data = JSON.parse(body);
         const portfolio = data.portfolio || {};
-        const risk = data.riskTolerance || 'medium';
-        const horizon = data.horizonYears || 20;
-        const trials = data.trials || 500;
-        const sim = simulatePortfolio(portfolio, risk, horizon, trials);
+        const risk = data.risk || 'medium';
+        const simulationResults = simulatePortfolio(portfolio, risk, 20, 1000);
         const plan = generateActionPlan(risk);
         const recs = generatePillarRecommendations(portfolio, risk);
-        sendResponse(res, 200, { summary: sim.summary, plan, recommendations: recs });
-      } catch (e) {
+        const summary = {
+          averageIRR: simulationResults.averageIRR,
+          irrs: simulationResults.irrs,
+          multiples: simulationResults.multiples,
+          bestMultiple: simulationResults.bestMultiple,
+          worstMultiple: simulationResults.worstMultiple,
+          meanMultiple: simulationResults.meanMultiple
+        };
+        sendResponse(res, 200, { summary, actionPlan: plan, recommendations: recs });
+      } catch (err) {
         sendResponse(res, 400, { error: 'Invalid JSON' });
       }
     });
   } else if (method === 'GET' && path === '/tasks') {
-    const tasksArray = Object.entries(tasks).map(([id, task]) => ({ id: Number(id), ...task }));
-    sendResponse(res, 200, tasksArray);
+    sendResponse(res, 200, Object.values(tasks));
+  } else if (method === 'GET' && path.startsWith('/tasks/')) {
+    const id = path.split('/')[2];
+    const task = tasks[id];
+    if (task) {
+      sendResponse(res, 200, task);
+    } else {
+      sendResponse(res, 404, { error: 'Task not found' });
+    }
   } else if (method === 'POST' && path === '/tasks') {
     let body = '';
     req.on('data', chunk => { body += chunk.toString(); });
     req.on('end', () => {
       try {
-        const taskData = JSON.parse(body);
-        if (!taskData.title || !taskData.description) {
-          sendResponse(res, 400, { error: 'Title and description are required' });
-          return;
-        }
+        const data = JSON.parse(body);
         const id = currentId++;
-        tasks[id] = taskData;
+        const task = { id, ...data };
+        tasks[id] = task;
         saveTasks(tasks);
-        sendResponse(res, 201, { id, ...taskData });
-      } catch (e) {
+        sendResponse(res, 201, task);
+      } catch (err) {
         sendResponse(res, 400, { error: 'Invalid JSON' });
       }
     });
-  } else if (method === 'GET' && /^\/tasks\/\d+$/.test(path)) {
+  } else if (method === 'PUT' && path.startsWith('/tasks/')) {
     const id = path.split('/')[2];
-    const task = tasks[id];
-    if (task) {
-      sendResponse(res, 200, { id: Number(id), ...task });
-    } else {
-      sendResponse(res, 404, { error: 'Task not found' });
-    }
-  } else if (method === 'PUT' && /^\/tasks\/\d+$/.test(path)) {
-    const id = path.split('/')[2];
-    if (!tasks[id]) {
-      sendResponse(res, 404, { error: 'Task not found' });
-      return;
-    }
     let body = '';
     req.on('data', chunk => { body += chunk.toString(); });
     req.on('end', () => {
       try {
-        const taskData = JSON.parse(body);
-        if (!taskData.title || !taskData.description) {
-          sendResponse(res, 400, { error: 'Title and description are required' });
-          return;
+        const data = JSON.parse(body);
+        if (tasks[id]) {
+          tasks[id] = { id: parseInt(id), ...data };
+          saveTasks(tasks);
+          sendResponse(res, 200, tasks[id]);
+        } else {
+          sendResponse(res, 404, { error: 'Task not found' });
         }
-        tasks[id] = taskData;
-        saveTasks(tasks);
-        sendResponse(res, 200, { id: Number(id), ...taskData });
-      } catch (e) {
+      } catch (err) {
         sendResponse(res, 400, { error: 'Invalid JSON' });
       }
     });
-  } else if (method === 'DELETE' && /^\/tasks\/\d+$/.test(path)) {
+  } else if (method === 'DELETE' && path.startsWith('/tasks/')) {
     const id = path.split('/')[2];
     if (tasks[id]) {
       delete tasks[id];
@@ -104,5 +102,5 @@ const server = http.createServer((req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
