@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Legacy Vision Simulator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    label { display: block; margin-top: 1rem; }
+    input, select { width: 100%; padding: 0.5rem; margin-top: 0.25rem; }
+    button { margin-top: 1rem; padding: 0.5rem 1rem; }
+    pre { background: #f2f2f2; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Legacy Vision Simulator</h1>
+  <p>Enter your portfolio allocation (%) and risk tolerance to generate a 3-year plan.</p>
+  <form id="simForm">
+    <label>Industrial %: <input type="number" name="industrial" min="0" max="100" step="1"></label>
+    <label>Multifamily %: <input type="number" name="multifamily" min="0" max="100" step="1"></label>
+    <label>Hospitality %: <input type="number" name="hospitality" min="0" max="100" step="1"></label>
+    <label>Office %: <input type="number" name="office" min="0" max="100" step="1"></label>
+    <label>Retail %: <input type="number" name="retail" min="0" max="100" step="1"></label>
+    <label>Risk tolerance:
+      <select name="risk">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+      </select>
+    </label>
+    <button type="submit">Run Simulation</button>
+  </form>
+  <div id="result"></div>
+  <script>
+    document.getElementById('simForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const form = new FormData(e.target);
+      const portfolio = {};
+      ['industrial','multifamily','hospitality','office','retail'].forEach(field => {
+        const val = parseFloat(form.get(field));
+        if (!isNaN(val) && val > 0) {
+          portfolio[field] = val;
+        }
+      });
+      const riskTolerance = form.get('risk');
+      const payload = { portfolio: portfolio, riskTolerance: riskTolerance };
+      const response = await fetch('/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<h2>Simulation Results</h2>' +
+        '<p>Average IRR: ' + (data.summary.averageIRR * 100).toFixed(2) + '%</p>' +
+        '<p>Best multiple: ' + data.summary.bestMultiple.toFixed(2) + 'x</p>' +
+        '<p>Worst multiple: ' + data.summary.worstMultiple.toFixed(2) + 'x</p>' +
+        '<p>Mean multiple: ' + data.summary.meanMultiple.toFixed(2) + 'x</p>' +
+        '<h3>Action Plan</h3><ul>' + data.plan.map(item => '<li>' + item + '</li>').join('') + '</ul>' +
+        '<h3>Strategic Recommendations</h3><pre>' + JSON.stringify(data.recommendations, null, 2) + '</pre>';
+    });
+  </script>
+</body>
+</html>
